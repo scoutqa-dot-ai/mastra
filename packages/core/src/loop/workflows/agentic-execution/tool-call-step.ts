@@ -171,7 +171,10 @@ export function createToolCallStep<
         Object.values(tools || {})?.find(tool => `id` in tool && tool.id === inputData.toolName);
 
       if (!tool) {
-        throw new Error(`Tool ${inputData.toolName} not found`);
+        return {
+          result: `Tool ${inputData.toolName} not found`,
+          ...inputData,
+        };
       }
 
       if (tool && 'onInputAvailable' in tool) {
