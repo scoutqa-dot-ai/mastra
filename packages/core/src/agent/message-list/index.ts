@@ -1040,13 +1040,16 @@ export class MessageList {
         }
       }
     }
+    const isMemoryMessage = latestMessage && this.memoryMessages.has(latestMessage);
     // If the last message is an assistant message and the new message is also an assistant message, merge them together and update tool calls with results
     const shouldAppendToLastAssistantMessage =
       latestMessage?.role === 'assistant' &&
       messageV2.role === 'assistant' &&
       latestMessage.threadId === messageV2.threadId &&
       // If the message is from memory, don't append to the last assistant message
-      messageSource !== 'memory';
+      messageSource !== 'memory' &&
+      // don't append TO a memory message
+      !isMemoryMessage;
     // This flag is for agent network messages. We should change the agent network formatting and remove this flag after.
     const appendNetworkMessage =
       (this._agentNetworkAppend && latestMessage && !this.memoryMessages.has(latestMessage)) ||
