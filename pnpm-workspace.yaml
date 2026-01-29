@@ -13,6 +13,7 @@ packages:
   - observability/*
   - explorations/longmemeval
   - explorations/agent-builder-gh-repro
+  - explorations/client-tool-calling-flow
   - e2e-tests/client-js/_test-utils
   - e2e-tests/client-js/zod-v3
   - e2e-tests/client-js/zod-v4

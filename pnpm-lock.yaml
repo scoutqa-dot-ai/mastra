@@ -810,6 +810,34 @@ importers:
         specifier: 'catalog:'
         version: 4.0.16(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(@vitest/ui@4.0.12(vitest@4.0.16))(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.9.3))(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.1)
 
+  explorations/client-tool-calling-flow:
+    dependencies:
+      '@ai-sdk/openai-v5':
+        specifier: npm:@ai-sdk/openai@2.0.72
+        version: '@ai-sdk/openai@2.0.72(zod@3.25.76)'
+      '@mastra/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@mastra/libsql':
+        specifier: workspace:*
+        version: link:../../stores/libsql
+      '@mastra/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
+      ai-v5:
+        specifier: npm:ai@^5.0.93
+        version: ai@5.0.101(zod@3.25.76)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.7
+        version: 22.19.7
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+
   explorations/longmemeval:
     dependencies:
       '@ai-sdk/openai':
