@@ -59,16 +59,17 @@ export function ensureGeminiCompatibleMessages<T extends ModelMessage | CoreMess
 // ============================================================================
 
 /**
- * Ensures model messages are compatible with Anthropic API requirements.
+ * Ensures model messages are compatible with Anthropic API requirements and
+ * recovers tool call arguments when they are split across messages.
  *
- * Anthropic API requires tool-result parts to include an 'input' field
- * that matches the original tool call arguments.
+ * This function handles two cases:
+ * 1. tool-result parts (role='tool'): Anthropic requires an 'input' field
+ * 2. tool-call parts (role='assistant'): Client tool calling flow may split
+ *    args across messages (original call in message 1, result in message 2 with empty args)
  *
  * @param messages - Array of model messages to transform
  * @param dbMessages - MastraDB messages to look up tool call args from
  * @returns Messages with tool-result parts enriched with input field
- *
- * @see https://github.com/mastra-ai/mastra/issues/11376 - Anthropic models fail with empty object tool input
  */
 export function ensureAnthropicCompatibleMessages(
   messages: ModelMessage[],
@@ -81,22 +82,51 @@ export function ensureAnthropicCompatibleMessages(
  * Enriches a single message's tool-result parts with input field
  */
 function enrichToolResultsWithInput(message: ModelMessage, dbMessages: MastraDBMessage[]): ModelMessage {
-  if (message.role !== 'tool' || !Array.isArray(message.content)) {
+  if (!Array.isArray(message.content)) {
     return message;
   }
 
-  return {
-    ...message,
-    content: message.content.map(part => {
-      if (part.type === 'tool-result') {
-        return {
-          ...part,
-          input: findToolCallArgs(dbMessages, part.toolCallId),
-        } as ToolResultWithInput;
+  // Handle tool-result parts in tool messages
+  // see https://github.com/mastra-ai/mastra/issues/11376 - Anthropic models fail with empty object tool input
+  if (message.role === 'tool') {
+    return {
+      ...message,
+      content: message.content.map(part => {
+        if (part.type === 'tool-result') {
+          return {
+            ...part,
+            input: findToolCallArgs(dbMessages, part.toolCallId),
+          } as ToolResultWithInput;
+        }
+        return part;
+      }),
+    } as ModelMessage;
+  }
+
+  // Handle tool-call parts with empty input in assistant messages
+  // see https://github.com/mastra-ai/mastra/issues/12405 - Tool call args lost when tool invocation split across messages (client tools)
+  if (message.role === 'assistant') {
+    let hasChanges = false;
+    const enrichedContent = message.content.map(part => {
+      if (part.type === 'tool-call') {
+        const existingInput = part.input;
+        if (!existingInput || (typeof existingInput === 'object' && Object.keys(existingInput).length === 0)) {
+          const args = findToolCallArgs(dbMessages, part.toolCallId);
+          if (Object.keys(args).length > 0) {
+            hasChanges = true;
+            return { ...part, input: args };
+          }
+        }
       }
       return part;
-    }),
-  } as ModelMessage;
+    });
+
+    if (hasChanges) {
+      return { ...message, content: enrichedContent } as ModelMessage;
+    }
+  }
+
+  return message;
 }
 
 // ============================================================================
@@ -161,15 +191,15 @@ export function getOpenAIReasoningItemId(part: unknown): string | undefined {
 export function findToolCallArgs(messages: MastraDBMessage[], toolCallId: string): Record<string, unknown> {
   // Search through all messages in reverse order (most recent first) for better performance
   for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg || msg.role !== 'assistant') {
+    const message = messages[i];
+    if (!message || message.role !== 'assistant') {
       continue;
     }
 
     // Check both content.parts (v2 format) and toolInvocations (legacy format)
-    if (msg.content.parts) {
+    if (message.content.parts) {
       // Look for tool-invocation with matching toolCallId (can be in 'call' or 'result' state)
-      const toolCallPart = msg.content.parts.find(
+      const toolCallPart = message.content.parts.find(
         p => p.type === 'tool-invocation' && p.toolInvocation.toolCallId === toolCallId,
       );
 
@@ -182,8 +212,8 @@ export function findToolCallArgs(messages: MastraDBMessage[], toolCallId: string
     }
 
     // Also check toolInvocations array (AIV4 format)
-    if (msg.content.toolInvocations) {
-      const toolInvocation = msg.content.toolInvocations.find(inv => inv.toolCallId === toolCallId);
+    if (message.content.toolInvocations) {
+      const toolInvocation = message.content.toolInvocations.find(inv => inv.toolCallId === toolCallId);
 
       if (toolInvocation) {
         const args = toolInvocation.args || {};
